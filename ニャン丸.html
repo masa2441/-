@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Life Planner（フランクリン・コヴィー × ニャン丸）</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #ecf0f1;
+            --border-color: #bdc3c7;
+            --text-color: #2c3e50;
+            --header-bg: #ffffff;
+            --hover-bg: #d6eaf8;
+            --today-bg: #f9e79f;
+            --current-month-bg: #eaf2f8;
+            --holiday-color: #e74c3c;
+            --saturday-color: #3498db;
+            --sunday-color: var(--holiday-color);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--secondary-color);
+            margin: 0; padding: 15px;
+            color: var(--text-color); line-height: 1.6;
+        }
+        .planner-container { max-width:1200px; margin:0 auto; background:var(--header-bg); border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.1); }
+        .tabs { display:flex; background-color:#f8f9f9; border-bottom:1px solid var(--border-color); padding:0 10px; flex-wrap:wrap; position:sticky; top:0; z-index:100; }
+        .tab-button { padding:15px 25px; cursor:pointer; border:none; background:none; font-size:16px; font-weight:500; color:#7f8c8d; position:relative; transition:color 0.3s ease; }
+        .tab-button.active { color:var(--primary-color); }
+        .tab-button.active::after { content:''; position:absolute; bottom:-1px; left:0; width:100%; height:3px; background-color:var(--primary-color); border-radius:3px 3px 0 0; }
+        .tab-button:hover { color:var(--primary-color); }
+        .tab-content { display:none; padding:20px; animation:fadeIn 0.5s; }
+        .tab-content.active { display:block; }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        h2 { color:var(--text-color); border-bottom:2px solid var(--secondary-color); padding-bottom:10px; margin-top:0; }
+        .editable { cursor:pointer; padding:5px; min-height:24px; width:100%; box-sizing:border-box; white-space:pre-wrap; word-wrap:break-word; border-radius:4px; }
+        .editable:hover { background-color:var(--hover-bg); }
+        .editing { background-color:#fff9c4 !important; }
+        .edit-input, .edit-textarea { width:100%; padding:5px; border:1px solid var(--primary-color); border-radius:4px; box-sizing:border-box; font-size:inherit; font-family:inherit; line-height:inherit; }
+        .edit-textarea { height:120px; resize:vertical; }
+        #yearly-content { overflow-y:auto; }
+        #yearly .calendar-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:20px; }
+        .year-month-container { border:1px solid var(--border-color); border-radius:6px; padding:10px; transition:box-shadow 0.3s, background-color 0.3s; }
+        .year-month-container h3 { text-align:center; margin:0 0 10px 0; font-size:1.1em; }
+        .year-month-table { width:100%; text-align:center; border-collapse:collapse; }
+        .year-month-table th, .year-month-table td { padding:3px; font-size:0.85em; }
+        .year-month-table th { color:#7f8c8d; }
+        .year-month-container:hover { box-shadow:0 2px 8px rgba(0,0,0,0.1); cursor:pointer; }
+        .year-month-container.current-month { background-color:var(--current-month-bg); border-color:var(--primary-color); }
+        .year-month-table .holiday { color:var(--holiday-color); font-weight:bold; }
+        #monthly .monthly-layout { display:grid; grid-template-columns:2.5fr 1fr; gap:20px; }
+        #monthly-memo-area { border:1px solid var(--border-color); border-radius:6px; padding:15px; }
+        #monthly-memo-area h3 { margin-top:0; }
+        #monthly-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; }
+        #monthly-header h2 { border:none; margin:0; }
+        #monthly-header button { background:none; border:1px solid var(--border-color); border-radius:5px; padding:5px 12px; cursor:pointer; }
+        .monthly-calendar-table { width:100%; height:70vh; border-collapse:collapse; table-layout:fixed; }
+        .monthly-calendar-table th, .monthly-calendar-table td { border:1px solid var(--border-color); vertical-align:top; padding:5px; }
+        .monthly-calendar-table th { padding:10px 5px; background-color:#f8f9f9; }
+        .date-header { display:flex; justify-content:space-between; align-items:center; }
+        .to-daily-btn { background:none; border:none; cursor:pointer; font-size:1.1em; padding:0 4px; border-radius:4px; }
+        .to-daily-btn:hover { background-color:var(--hover-bg); }
+        .monthly-calendar-table .date-number { font-size:0.9em; font-weight:500; }
+        .monthly-calendar-table .day-cell.today .date-number { background-color:var(--primary-color); color:white; border-radius:50%; display:inline-block; width:24px; height:24px; line-height:24px; text-align:center; }
+        .monthly-calendar-table .day-cell.other-month { background-color:#fdfefe; color:#ccc; }
+        .monthly-calendar-table .editable { height:calc(100% - 20px); font-size:0.85em; }
+        th.saturday, .saturday .date-number, span.saturday { color:var(--saturday-color) !important; }
+        th.sunday, .sunday .date-number, span.sunday, .holiday { color:var(--holiday-color) !important; }
+        .task-list { list-style:none; padding:0; margin:0; }
+        .task-item { display:flex; align-items:center; margin-bottom:8px; padding:8px 4px; border-radius:4px; position:relative; }
+        .task-item:hover { background-color:#f4f6f7; }
+        .task-item input[type="checkbox"] { margin-right:10px; flex-shrink:0; width:20px; height:20px; }
+        .task-item .content { flex-grow:1; min-height:28px; padding:4px; }
+        .task-item.completed .content { text-decoration:line-through; color:#95a5a6; }
+        .add-task-btn { margin-top:10px; width:100%; padding:12px 8px; background-color:#f1f1f1; border:1px dashed var(--border-color); border-radius:5px; cursor:pointer; color:#7f8c8d; font-size:15px; }
+        .add-task-btn:hover { background-color:var(--hover-bg); color:var(--text-color); }
+        .task-menu-btn { background:none; border:none; color:#999; cursor:pointer; font-size:1.4em; padding:4px 8px; margin-left:4px; flex-shrink:0; border-radius:4px; }
+        .task-menu-btn:hover { background-color:#eee; }
+        .task-actions { display:none; position:absolute; right:0; top:100%; background:white; border:1px solid var(--border-color); border-radius:6px; box-shadow:0 3px 12px rgba(0,0,0,0.15); z-index:50; min-width:140px; overflow:hidden; }
+        .task-actions.open { display:block; }
+        .task-action-item { display:block; width:100%; padding:12px 16px; border:none; background:none; text-align:left; cursor:pointer; font-size:14px; color:var(--text-color); }
+        .task-action-item:hover { background-color:#f4f6f7; }
+        .task-action-item.danger { color:var(--holiday-color); }
+        .task-action-item.danger:hover { background-color:#fdecea; }
+        .task-action-item.confirm { background-color:var(--holiday-color); color:white; font-weight:bold; }
+        #daily-content { overflow-y:auto; padding-right:15px; }
+        .day-container { border-bottom:1px solid #eee; margin-bottom:20px; padding-bottom:20px; }
+        .day-container h3 { font-size:1.2em; margin-top:0; }
+        .day-container.today { background-color:#fef9e7; border:1px solid var(--today-bg); border-radius:5px; padding:15px; }
+        .daily-grid { display:grid; grid-template-columns:1fr 10px 2fr; }
+        .daily-tasks, .daily-schedule { border:1px solid var(--border-color); border-radius:5px; padding:10px; }
+        .daily-tasks h4, .daily-schedule h4 { margin-top:0; }
+        .schedule-item { display:flex; align-items:flex-start; }
+        .schedule-time { width:50px; flex-shrink:0; padding-top:5px; font-size:0.9em; color:#7f8c8d; }
+        .priority-select { width:50px; margin-right:8px; flex-shrink:0; border:1px solid #ddd; border-radius:4px; font-size:0.9em; }
+        .resizer { cursor:col-resize; background-color:var(--secondary-color); transition:background-color 0.2s ease; }
+        .resizer:hover { background-color:var(--primary-color); }
+        .goals-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(400px, 1fr)); gap:20px; }
+        .goal-section { border:1px solid var(--border-color); border-radius:6px; padding:15px; }
+        .goal-section.wide { grid-column: 1 / -1; }
+        .goal-section h2 { color:var(--primary-color); border-bottom:2px solid var(--secondary-color); padding-bottom:8px; margin-top:0; font-size:1.25em; }
+        .goal-section .section-intro { font-size:13px; color:#7f8c8d; margin:0 0 12px 0; line-height:1.5; }
+        .goal-section .editable { background-color:#fbfcfd; border:1px dashed #e0e6ed; min-height:30px; margin-top:4px; }
+        .goal-section .editable:hover { background-color:var(--hover-bg); }
+        .goal-item { margin-bottom:14px; }
+        .goal-item strong { display:block; margin-bottom:3px; }
+        .mission-box { background:linear-gradient(135deg, #eaf3fa 0%, #f4f9fc 100%); border:2px solid var(--primary-color); border-radius:8px; padding:16px; margin:10px 0; }
+        .mission-box .editable { background:white; min-height:80px; border:1px solid #cfdde9; font-size:15px; line-height:1.7; color:#1f4e79; }
+        .planner-quote { font-style:italic; color:#7f8c8d; text-align:center; padding:8px; background:#fafbfc; border-left:3px solid var(--primary-color); border-radius:0 4px 4px 0; margin:10px 0; }
+        .planner-table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; }
+        .planner-table th, .planner-table td { border:1px solid var(--border-color); padding:8px 10px; text-align:left; vertical-align:top; }
+        .planner-table th { background-color:#d5e8f0; font-weight:bold; color:#1f4e79; }
+        .planner-table td.label-cell { background-color:#f2f6f9; font-weight:bold; width:30%; }
+        .planner-table .editable { min-height:30px; padding:4px; }
+        .role-row td:first-child { background-color:#f8fafc; font-weight:bold; color:#1f4e79; }
+        .week-schedule-table { width:100%; border-collapse:collapse; margin-top:8px; font-size:12px; }
+        .week-schedule-table th, .week-schedule-table td { border:1px solid var(--border-color); padding:4px; vertical-align:top; min-width:60px; }
+        .week-schedule-table th { background-color:#d5e8f0; text-align:center; font-weight:bold; }
+        .week-schedule-table th.weekday-work { background-color:#d5e8f0; }
+        .week-schedule-table th.weekday-teach { background-color:#ffe699; }
+        .week-schedule-table th.weekday-off { background-color:#c6efce; }
+        .week-schedule-table td.time-label { background-color:#f2f2f2; font-weight:bold; text-align:center; min-width:80px; }
+        .week-schedule-table .editable { min-height:50px; font-size:11px; }
+        .ai-tip { background:#fff8e1; border-left:4px solid #ffc107; padding:10px 14px; border-radius:0 4px 4px 0; margin:8px 0; font-size:13px; }
+        .ai-tip strong { color:#b8860b; }
+        .warning-box { background:#fdecea; border-left:4px solid #e74c3c; padding:10px 14px; border-radius:0 4px 4px 0; margin:12px 0; font-size:13px; color:#943126; }
+        .subnav { display:flex; flex-wrap:wrap; gap:6px; padding:10px; background:#f8f9f9; border-bottom:1px solid var(--border-color); position:sticky; top:48px; z-index:90; }
+        .subnav button { padding:6px 12px; border:1px solid var(--border-color); background:white; border-radius:20px; font-size:12px; cursor:pointer; color:var(--text-color); }
+        .subnav button:hover { background:var(--hover-bg); border-color:var(--primary-color); }
+        .subnav button.active { background:var(--primary-color); color:white; border-color:var(--primary-color); }
+        .section-anchor { scroll-margin-top:120px; }
+        .task-list-table { width:100%; border-collapse:collapse; }
+        .task-list-table th, .task-list-table td { border:1px solid var(--border-color); padding:8px; text-align:left; }
+        .task-list-table th { background-color:#f8f9f9; }
+        .task-list-table .priority-cell { width:60px; text-align:center; }
+        .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; z-index:1000; }
+        .modal-content { background:white; padding:25px; border-radius:8px; box-shadow:0 5px 15px rgba(0,0,0,0.3); width:90%; max-width:400px; }
+        .modal-content h3 { margin-top:0; }
+        .modal-content p { margin:10px 0; word-break:break-all; }
+        .modal-content input[type="date"] { width:100%; padding:8px; box-sizing:border-box; margin-top:5px; }
+        .modal-actions { margin-top:20px; text-align:right; }
+        .modal-actions button { margin-left:10px; padding:8px 15px; border-radius:5px; cursor:pointer; border:none; }
+        #modal-move-btn { background-color:var(--primary-color); color:white; }
+        #modal-copy-btn { background-color:#2ecc71; color:white; }
+        #modal-cancel-btn { background-color:#f1f1f1; border:1px solid var(--border-color); color:var(--text-color); }
+        .data-mgmt-btn { margin-left:auto !important; font-size:13px !important; color:#27ae60 !important; }
+        .data-mgmt-btn:hover { color:var(--primary-color) !important; }
+        #data-mgmt-modal .modal-content { max-width:560px; }
+        #data-mgmt-modal textarea { width:100%; height:180px; font-family:monospace; font-size:12px; padding:8px; box-sizing:border-box; border:1px solid var(--border-color); border-radius:4px; resize:vertical; }
+        #data-mgmt-modal .section { margin-bottom:18px; }
+        #data-mgmt-modal .section h4 { margin:0 0 6px 0; }
+        #data-mgmt-modal .btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+        #data-mgmt-modal .btn-row button { padding:8px 16px; border-radius:5px; cursor:pointer; border:none; font-size:14px; }
+        .btn-export { background-color:var(--primary-color); color:white; }
+        .btn-import { background-color:#2ecc71; color:white; }
+        .btn-merge { background-color:#f39c12; color:white; }
+        .btn-close-dm { background-color:#f1f1f1; border:1px solid var(--border-color) !important; color:var(--text-color); }
+        #import-status { margin-top:8px; font-size:13px; min-height:20px; }
+        @media screen and (max-width: 768px) {
+            body { padding:5px; -webkit-text-size-adjust:100%; }
+            .planner-container { border-radius:0; box-shadow:none; }
+            .tab-button { padding:12px 10px; font-size:14px; flex-grow:1; text-align:center; }
+            .tab-content { padding:10px; }
+            #yearly-content, #daily-content, .monthly-calendar-table { max-height:none; height:auto; }
+            #yearly .calendar-grid { grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+            #monthly .monthly-layout { grid-template-columns:1fr; gap:15px; }
+            .monthly-calendar-table { font-size:12px; }
+            .monthly-calendar-table .editable { min-height:40px; }
+            #monthly-header h2 { font-size:1.2em; }
+            #monthly-header button { padding:5px 8px; }
+            .daily-grid { grid-template-columns:1fr; gap:15px; }
+            .resizer { display:none; }
+            .goals-grid { grid-template-columns:1fr; gap:15px; }
+            .planner-table { font-size:12px; }
+            .planner-table th, .planner-table td { padding:5px 6px; }
+            .week-schedule-table { font-size:10px; }
+            .week-schedule-table th, .week-schedule-table td { padding:2px; min-width:38px; }
+            .week-schedule-table td.time-label { min-width:50px; font-size:10px; }
+            .subnav { padding:6px; gap:4px; top:42px; }
+            .subnav button { padding:5px 8px; font-size:11px; }
+            .modal-content { width:95%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="planner-container" id="app">
+    <div class="tabs">
+        <button class="tab-button active" data-tab="yearly">年間</button>
+        <button class="tab-button" data-tab="monthly">月間</button>
+        <button class="tab-button" data-tab="daily">デイリー</button>
+        <button class="tab-button" data-tab="goals">目標設定</button>
+        <button class="tab-button data-mgmt-btn" id="open-data-mgmt">&#x1F4BE; データ</button>
+    </div>
+    <div id="yearly" class="tab-content active">
+        <h2>2026年 年間スケジュール</h2>
+        <div id="yearly-content"><div class="calendar-grid" id="yearly-calendar-grid"></div></div>
+    </div>
+    <div id="monthly" class="tab-content">
+        <div class="monthly-layout">
+            <div id="monthly-calendar-area">
+                <div id="monthly-header">
+                    <button id="prev-month-btn">&lt; 前の月</button>
+                    <h2 id="monthly-calendar-title"></h2>
+                    <button id="next-month-btn">次の月 &gt;</button>
+                </div>
+                <table class="monthly-calendar-table">
+                    <thead><tr id="monthly-calendar-header"></tr></thead>
+                    <tbody id="monthly-calendar-body"></tbody>
+                </table>
+            </div>
+            <div id="monthly-memo-area">
+                <h3>今月のタスクリスト</h3>
+                <ul class="task-list" id="monthly-task-list"></ul>
+                <button class="add-task-btn" id="add-monthly-task-btn">+ タスクを追加</button>
+            </div>
+        </div>
+    </div>
+    <div id="daily" class="tab-content">
+        <h2>デイリースケジュール (2026年)</h2>
+        <div id="daily-content"></div>
+    </div>
+    <div id="goals" class="tab-content"></div>
+</div>
+
+<div id="move-task-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <h3>タスクの移動 / コピー</h3>
+        <p>タスク: <strong id="modal-task-content"></strong></p>
+        <div>
+            <label for="modal-target-date">移動/コピー先の日付:</label>
+            <input type="date" id="modal-target-date" name="target-date" min="2026-01-01" max="2026-12-31">
+        </div>
+        <div class="modal-actions">
+            <button id="modal-cancel-btn">キャンセル</button>
+            <button id="modal-copy-btn">コピー</button>
+            <button id="modal-move-btn">移動</button>
+        </div>
+    </div>
+</div>
+
+<div id="data-mgmt-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-content">
+        <h3>データ管理</h3>
+        <div class="section">
+            <h4>エクスポート（書き出し）</h4>
+            <p style="font-size:13px;color:#7f8c8d;">現在のデータをJSON形式でコピーできます。</p>
+            <div class="btn-row">
+                <button class="btn-export" id="btn-export">JSONをコピー</button>
+            </div>
+            <div id="export-status"></div>
+        </div>
+        <div class="section">
+            <h4>インポート（読み込み）</h4>
+            <p style="font-size:13px;color:#7f8c8d;">JSONデータを貼り付けてください。</p>
+            <textarea id="import-textarea" placeholder='ここにJSONを貼り付け...'></textarea>
+            <div class="btn-row">
+                <button class="btn-import" id="btn-import-overwrite">上書きインポート</button>
+                <button class="btn-merge" id="btn-import-merge">マージ（追記）</button>
+            </div>
+            <div id="import-status"></div>
+        </div>
+        <div style="text-align:right;margin-top:10px;">
+            <button class="btn-close-dm" id="btn-close-dm">閉じる</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const YEAR = 2026;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let currentMonth = today.getFullYear() === YEAR ? today.getMonth() : 0;
+    let currentYear = YEAR;
+
+    const holidays = {
+        '2026-01-01':'元日','2026-01-12':'成人の日','2026-02-11':'建国記念の日','2026-02-23':'天皇誕生日','2026-03-20':'春分の日',
+        '2026-04-29':'昭和の日','2026-05-03':'憲法記念日','2026-05-04':'みどりの日','2026-05-05':'こどもの日','2026-05-06':'振替休日',
+        '2026-07-20':'海の日','2026-08-11':'山の日','2026-09-21':'敬老の日','2026-09-22':'国民の休日','2026-09-23':'秋分の日',
+        '2026-10-12':'スポーツの日','2026-11-03':'文化の日','2026-11-23':'勤労感謝の日'
+    };
+    const weekdays = ['日','月','火','水','木','金','土'];
+    const isHoliday = (date) => holidays[date.toISOString().slice(0,10)];
+
+    // === localStorage版ストレージ ===
+    let editablesData = JSON.parse(localStorage.getItem('planner-editables') || '{}');
+    let monthlyTasksData = JSON.parse(localStorage.getItem('planner-monthly-tasks') || '{}');
+    let dailyTasksData = JSON.parse(localStorage.getItem('planner-daily-tasks') || '{}');
+
+    function saveEditables() { localStorage.setItem('planner-editables', JSON.stringify(editablesData)); }
+    function saveMonthlyTasksStorage() { localStorage.setItem('planner-monthly-tasks', JSON.stringify(monthlyTasksData)); }
+    function saveDailyTasksStorage() { localStorage.setItem('planner-daily-tasks', JSON.stringify(dailyTasksData)); }
+
+    const getMonthlyTasks = (monthId) => monthlyTasksData[monthId] || [];
+    const saveMonthlyTasks = (monthId, tasks) => { monthlyTasksData[monthId] = tasks; saveMonthlyTasksStorage(); };
+    const getDailyTasks = (dateId) => dailyTasksData[dateId] || [];
+    const saveDailyTasks = (dateId, tasks) => { dailyTasksData[dateId] = tasks; saveDailyTasksStorage(); };
+
+    const openTab = (tabName) => {
+        document.querySelectorAll('.tab-content, .tab-button').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabName)?.classList.add('active');
+        document.querySelector(`.tab-button[data-tab="${tabName}"]`)?.classList.add('active');
+        if (tabName === 'yearly') highlightAndScrollCurrentMonth();
+        if (tabName === 'daily') scrollToToday();
+    };
+
+    function init() {
+        generateGoalsTab();
+        generateYearlyCalendar();
+        generateMonthlyCalendar(currentYear, currentMonth);
+        generateDailyView();
+        setupEventListeners();
+        setupResizeListeners();
+        setupTaskMoveModal();
+        setupDataManagement();
+        setupKeyboardNavigation();
+        loadAllData();
+        openTab('yearly');
+    }
+
+    function generateGoalsTab() {
+        const g = document.getElementById('goals');
+
+        // サブナビゲーション
+        const subnav = `<div class="subnav" id="goals-subnav">
+            <button data-anchor="sec-mission">ミッション</button>
+            <button data-anchor="sec-values">価値観</button>
+            <button data-anchor="sec-roles">役割</button>
+            <button data-anchor="sec-vision">10年後</button>
+            <button data-anchor="sec-milestones">10年表</button>
+            <button data-anchor="sec-yearly">今年</button>
+            <button data-anchor="sec-quarterly">3ヶ月</button>
+            <button data-anchor="sec-weekly">週次計画</button>
+            <button data-anchor="sec-weeklygrid">週スケジュール</button>
+            <button data-anchor="sec-evening">夜の振り返り</button>
+            <button data-anchor="sec-monthly">月次レビュー</button>
+            <button data-anchor="sec-ai">AI活用</button>
+        </div>`;
+
+        const missionSec = `<div class="goal-section wide section-anchor" id="sec-mission">
+            <h2>📜 ミッション・ステートメント</h2>
+            <p class="section-intro">あなたの人生の憲法。迷ったとき、決断に困ったとき、ここに立ち返ります。</p>
+            <div class="planner-quote">「重要事項を優先する」― スティーブン・R・コヴィー『7つの習慣』</div>
+            <div class="mission-box">
+                <strong>私のミッション：</strong>
+                <div class="editable" data-id="mission-statement">私は、医療と介護の知恵を磨き、テクノロジーを味方につけて、一人でも多くのことを成し遂げられる人間になります。猫との時間を大切にし、信仰と学びを通して心を養い、健やかな身体と経済的な自由を築きます。やがては茨城の地に戻り、ケアマネジャーとして地域の人々を支える ― それが私の歩む道です。</div>
+            </div>
+        </div>`;
+
+        const values = [
+            ['1', '自立 ／ 効率', '一人で多くのことを成し遂げる力。AIや道具を使いこなす。'],
+            ['2', '家族 ／ 母との時間', '78歳の母と穏やかに暮らす。いずれ地元に戻って支える。'],
+            ['3', '学び ／ 成長', '資格、知識、AI活用。学び続けることが私を生かす。'],
+            ['4', '経済的自由', '借金を完済し、投資で備えのある暮らしを築く。'],
+            ['5', '健康 ／ 身体への労り', '頚椎を労り、水泳で身体を整える。スタミナや持久力を身につける。'],
+            ['6', '信仰', 'キリスト教を学び、心の拠り所と倫理の軸を持つ。'],
+            ['7', '自然との繋がり', '実家の畑、保護した猫。小さな命を慈しむ。'],
+            ['8', '貢献', '医療・介護を通じて、いずれは地域の人々を支える。']
+        ];
+        const valuesRows = values.map(([rank, name, meaning]) => `
+            <tr>
+                <td style="text-align:center;font-weight:bold;width:50px;">${rank}</td>
+                <td style="width:30%;"><div class="editable" data-id="value-name-${rank}">${name}</div></td>
+                <td><div class="editable" data-id="value-meaning-${rank}">${meaning}</div></td>
+            </tr>`).join('');
+        const valuesSec = `<div class="goal-section wide section-anchor" id="sec-values">
+            <h2>💎 私の価値観</h2>
+            <p class="section-intro">あなたの選択を支える、大切にしたいこと。順位は変えてOK。</p>
+            <table class="planner-table">
+                <thead><tr><th style="width:50px;">順位</th><th>価値観</th><th>私にとっての意味</th></tr></thead>
+                <tbody>${valuesRows}</tbody>
+            </table>
+        </div>`;
+
+        const roles = [
+            ['自分自身\n(心・身体・成長)', '学び続け、身体を労り、信仰を育てる人', 'ITパスポート→秘書検定→ケアマネ取得。水泳習慣化。聖書を学ぶ。'],
+            ['猫との関係', '共に過ごす時間を大切にする', '週に一度はゆっくり過ごす時間。'],
+            ['訪問診療アシスタント', '医療・介護の知識を深め、現場を支えるプロ', '業務効率化、AI活用、医療知識のアップデート。'],
+            ['講師', '学びを分かちあい、受講者の力になる人', '教材のブラッシュアップ、AI時代のOffice活用へ拡張。'],
+            ['家計の責任者\n(借金返済・投資)', 'お金と冷静に向き合い、自由を築く人', '2〜3年で借金完済。並行して投資の基礎を学ぶ。'],
+            ['生活者(畑)', '小さな命と暮らしを慈しむ人', '畑で家族分の作物を育てる。'],
+            ['信仰者\n(キリスト教の学び)', '聖書と祈りを通して心を養う人', '聖書通読、教会または信頼できる学びの場の発見。']
+        ];
+        const rolesRows = roles.map((r, i) => `
+            <tr class="role-row">
+                <td style="width:25%;white-space:pre-line;"><div class="editable" data-id="role-name-${i+1}">${r[0]}</div></td>
+                <td style="width:35%;"><div class="editable" data-id="role-being-${i+1}">${r[1]}</div></td>
+                <td><div class="editable" data-id="role-goal-${i+1}">${r[2]}</div></td>
+            </tr>`).join('');
+        const rolesSec = `<div class="goal-section wide section-anchor" id="sec-roles">
+            <h2>👥 私の役割</h2>
+            <p class="section-intro">人は誰しも複数の役割を生きています。どの役割もバランスよく育てることで、人生は豊かになります。</p>
+            <table class="planner-table">
+                <thead><tr><th>役割</th><th>この役割での在り方</th><th>長期的な目標</th></tr></thead>
+                <tbody>${rolesRows}</tbody>
+            </table>
+        </div>`;
+
+        const visionSec = `<div class="goal-section wide section-anchor" id="sec-vision">
+            <h2>🌅 10年後の私 ― ビジョン</h2>
+            <p class="section-intro">2036年、56歳の私。理想の一日、理想の私の姿を描きます。</p>
+            <div class="planner-quote">「終わりを思い描くことから始める」</div>
+            <div class="mission-box">
+                <div class="editable" data-id="vision-10year">茨城の実家を拠点に、ケアマネジャーとして地域の高齢者を支えている。借金は完済し、投資による収入の柱も育ち始めている。母（88歳）と穏やかに暮らし、畑では季節の野菜を育て、猫は13歳でのんびり日向ぼっこ。日々の業務はAIに任せられる部分は任せ、自分は人と向き合うことに集中している。水泳は週2回の習慣になっていて、頚椎の痛みとも上手に付き合えている。日曜は教会か聖書の学びの時間。心穏やかで、自分の力で人生を運転している実感がある。</div>
+            </div>
+        </div>`;
+
+        const milestones = [
+            ['2026年', '46→47歳', 'ITパスポート合格\n秘書検定2級の学習開始', '借金 −100〜150万\n家計簿で見える化', '水泳を週1で開始\n畑で季節の野菜'],
+            ['2027年', '47→48歳', '秘書検定2級合格\nケアマネ受験勉強開始', '借金 −100〜150万\n少額投資の勉強', '水泳 週2回\n聖書通読1周目'],
+            ['2028年', '48→49歳', 'ケアマネ試験合格', '借金完済\n投資 本格開始', '武蔵小杉近郊へ\n引っ越し検討'],
+            ['2029〜30年', '49〜50歳', 'ケアマネ実務経験\nAI活用を深化', '投資の柱を育てる\n貯蓄目標設定', '職場近くで暮らす\n実家を訪問'],
+            ['2031〜33年', '51〜53歳', '専門性を磨く\n地元への準備', 'Uターン資金の準備', '地元のケアマネ事業所\nリサーチ'],
+            ['2034〜36年', '54〜56歳', '地元で実践', '投資収入が安定', '茨城で母と暮らす\nケアマネとして貢献']
+        ];
+        const msRows = milestones.map((m, i) => `
+            <tr>
+                <td style="font-weight:bold;text-align:center;"><div class="editable" data-id="ms-period-${i+1}">${m[0]}</div></td>
+                <td style="text-align:center;"><div class="editable" data-id="ms-age-${i+1}">${m[1]}</div></td>
+                <td><div class="editable" data-id="ms-learn-${i+1}" style="white-space:pre-line;">${m[2]}</div></td>
+                <td><div class="editable" data-id="ms-money-${i+1}" style="white-space:pre-line;">${m[3]}</div></td>
+                <td><div class="editable" data-id="ms-life-${i+1}" style="white-space:pre-line;">${m[4]}</div></td>
+            </tr>`).join('');
+        const milestonesSec = `<div class="goal-section wide section-anchor" id="sec-milestones">
+            <h2>🗺 マイルストーン ― 10年の歩み</h2>
+            <p class="section-intro">大きなビジョンを、年単位の節目に落とし込みます。</p>
+            <table class="planner-table">
+                <thead><tr><th>時期</th><th>年齢</th><th>学び・資格</th><th>お金</th><th>暮らし</th></tr></thead>
+                <tbody>${msRows}</tbody>
+            </table>
+        </div>`;
+
+        const yearlyGoals = [
+            ['自分自身', 'ITパスポート合格', '7月末まで'],
+            ['自分自身', '秘書検定2級の学習開始（参考書1周）', '12月末まで'],
+            ['自分自身（健康）', '水泳を月4回（週1回ペース）に習慣化', '9月まで定着'],
+            ['信仰者', '聖書を読み始める（新約から週1章）。教会か学びの場を1つ訪問', '通年'],
+            ['家計の責任者', '借金を100〜150万円返済（月8〜12万円ペース）', '12月末'],
+            ['家計の責任者', '家計簿アプリで月次収支を見える化', '6月まで定着'],
+            ['猫', '猫と週1回はゆっくり過ごす時間を持つ', '通年'],
+            ['生活者', '畑で4種類以上の作物を収穫', '収穫シーズン'],
+            ['訪問診療アシスタント', 'AI活用で業務時間を週3時間短縮する仕組みを作る', '9月末まで'],
+            ['講師', 'AI時代のExcel講座（新テーマ）の教材を1つ作る', '11月末まで']
+        ];
+        const yearlyRows = yearlyGoals.map((y, i) => `
+            <tr>
+                <td style="font-weight:bold;background:#f8fafc;"><div class="editable" data-id="yg-role-${i+1}">${y[0]}</div></td>
+                <td><div class="editable" data-id="yg-goal-${i+1}">${y[1]}</div></td>
+                <td style="text-align:center;width:18%;"><div class="editable" data-id="yg-due-${i+1}">${y[2]}</div></td>
+            </tr>`).join('');
+        const yearlySec = `<div class="goal-section wide section-anchor" id="sec-yearly">
+            <h2>🎯 今年（2026年）の目標</h2>
+            <p class="section-intro">役割ごとに、今年の終わりまでに達成したいことを書きます。</p>
+            <table class="planner-table">
+                <thead><tr><th style="width:22%;">役割</th><th>具体的な目標（数値で）</th><th style="width:18%;">期限</th></tr></thead>
+                <tbody>${yearlyRows}</tbody>
+            </table>
+        </div>`;
+
+        const quarterlyGoals = [
+            ['1', 'ITパスポート合格', '', ''],
+            ['2', '作物を３つ育てる', '', ''],
+            ['3', '水泳をする', '', ''],
+            ['4', '秘書検定２級を調べる', '', ''],
+            ['5', '', '', ''],
+            ['6', '', '', '']
+        ];
+        const qRows = quarterlyGoals.map((q, i) => `
+            <tr>
+                <td style="text-align:center;font-weight:bold;width:50px;">${q[0]}</td>
+                <td><div class="editable" data-id="q-what-${i+1}">${q[1]}</div></td>
+                <td><div class="editable" data-id="q-week-${i+1}">${q[2]}</div></td>
+                <td style="width:80px;"><div class="editable" data-id="q-progress-${i+1}">${q[3]}</div></td>
+            </tr>`).join('');
+        const quarterlySec = `<div class="goal-section wide section-anchor" id="sec-quarterly">
+            <h2>📅 今期（直近3ヶ月）の目標</h2>
+            <p class="section-intro">年間目標を3ヶ月の塊に分割します。短期だから動きやすい。</p>
+            <div style="margin-bottom:8px;">対象期間：<span class="editable" data-id="q-period" style="display:inline-block;min-width:200px;border:1px dashed #e0e6ed;padding:2px 8px;">５月　〜　８月</span></div>
+            <table class="planner-table">
+                <thead><tr><th>No.</th><th>3ヶ月で達成すること</th><th>毎週の行動</th><th>進捗</th></tr></thead>
+                <tbody>${qRows}</tbody>
+            </table>
+        </div>`;
+
+        const weeklySec = `<div class="goal-section wide section-anchor" id="sec-weekly">
+            <h2>📝 週次計画シート</h2>
+            <p class="section-intro">日曜の夜、30分かけて来週を設計します。記入欄は毎週上書きしてOK（履歴を残したい場合は「データ」からエクスポート）。</p>
+            <div class="planner-quote">「ビッグロックを先に入れる ― 大切な石から器に詰めれば、小石は隙間に収まる」</div>
+            <table class="planner-table">
+                <tr><td class="label-cell">対象週</td><td><div class="editable" data-id="weekly-target"></div></td></tr>
+                <tr><td class="label-cell">先週の成果<br>(できたこと)</td><td><div class="editable" data-id="weekly-wins"></div></td></tr>
+                <tr><td class="label-cell">先週の課題<br>(改善点)</td><td><div class="editable" data-id="weekly-issues"></div></td></tr>
+                <tr><td class="label-cell">今週の感謝</td><td><div class="editable" data-id="weekly-thanks"></div></td></tr>
+            </table>
+            <h3 style="margin-top:18px;font-size:1.05em;">役割ごとの「今週のビッグロック」</h3>
+            <p class="section-intro">各役割で、今週これだけは ── というものを書きます。先に予定表に入れてから、他の予定を埋めてください。</p>
+            <table class="planner-table">
+                <thead><tr><th style="width:25%;">役割</th><th>今週のビッグロック</th><th style="width:18%;">予定日時</th></tr></thead>
+                <tbody>
+                    ${['自分自身（心・身体・学び）', '猫との時間', '訪問診療アシスタント', '講師', '家計の責任者', '信仰者', '生活者（畑）'].map((role, i) => `
+                    <tr class="role-row">
+                        <td>${role}</td>
+                        <td><div class="editable" data-id="big-rock-${i+1}"></div></td>
+                        <td><div class="editable" data-id="big-rock-when-${i+1}"></div></td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+
+        const dayHeaders = [
+            {label: '日', cls: 'weekday-work'},
+            {label: '月', cls: 'weekday-work'},
+            {label: '火', cls: 'weekday-work'},
+            {label: '水', cls: 'weekday-teach'},
+            {label: '木', cls: 'weekday-off'},
+            {label: '金', cls: 'weekday-work'},
+            {label: '土', cls: 'weekday-work'}
+        ];
+        const timeSlots = ['早朝\n(5-7時)', '午前\n(7-12時)', '午後\n(12-17時)', '夕方\n(17-19時)', '夜\n(19-22時)'];
+        const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const timeKeys = ['early', 'am', 'pm', 'eve', 'night'];
+        const weekScheduleRows = timeSlots.map((slot, ti) => `
+            <tr>
+                <td class="time-label" style="white-space:pre-line;">${slot}</td>
+                ${dayKeys.map(dk => `<td><div class="editable" data-id="weeksch-${dk}-${timeKeys[ti]}"></div></td>`).join('')}
+            </tr>`).join('');
+        const weeklyGridSec = `<div class="goal-section wide section-anchor" id="sec-weeklygrid">
+            <h2>🗓 今週のスケジュール（理想形）</h2>
+            <p class="section-intro">勤務日（日月火金土）／講師日（水or火）／オフ日（木）の前提で、ビッグロックを先に書き込む雛形です。実際の予定は「月間」「デイリー」タブで管理。</p>
+            <table class="week-schedule-table">
+                <thead><tr><th>時間</th>${dayHeaders.map(d => `<th class="${d.cls}">${d.label}</th>`).join('')}</tr></thead>
+                <tbody>${weekScheduleRows}</tbody>
+            </table>
+            <div class="ai-tip"><strong>💡 配置のヒント：</strong> 木曜は時間が取りやすい日。学び・水泳・心のメンテに使うと効果的。移動2時間半の電車内は学習タイム（IT/秘書検定）に。</div>
+        </div>`;
+
+        const eveningSec = `<div class="goal-section wide section-anchor" id="sec-evening">
+            <h2>🌙 夜の振り返り（テンプレート）</h2>
+            <p class="section-intro">一日の終わりに10分。AIに話しかけて整理してもらうのも有効です。デイリータブに書く前の整理用としても使えます。</p>
+            <div class="planner-quote">「1日を意図して生きるか、流されて生きるか」</div>
+            <table class="planner-table">
+                <tr><td class="label-cell">今日できたこと<br>(小さくてもOK)</td><td><div class="editable" data-id="eve-wins"></div></td></tr>
+                <tr><td class="label-cell">今日学んだこと</td><td><div class="editable" data-id="eve-learn"></div></td></tr>
+                <tr><td class="label-cell">感情の動き<br>(嬉しい / モヤモヤ)</td><td><div class="editable" data-id="eve-emotion"></div></td></tr>
+                <tr><td class="label-cell">明日に持ち越すこと</td><td><div class="editable" data-id="eve-carry"></div></td></tr>
+                <tr><td class="label-cell" style="background:#fff8e1;">明日の最重要1つ</td><td><div class="editable" data-id="eve-mit"></div></td></tr>
+                <tr><td class="label-cell">感謝のひと言<br>(母 / 猫 / 自分自身へ)</td><td><div class="editable" data-id="eve-thanks"></div></td></tr>
+            </table>
+        </div>`;
+
+        const monthlyReviewSec = `<div class="goal-section wide section-anchor" id="sec-monthly">
+            <h2>🔍 月次レビュー</h2>
+            <p class="section-intro">月末に45分。先月を振り返り、来月を整えます。</p>
+            <div class="planner-quote">「内省なき経験は、学びにならない」</div>
+            <div style="margin-bottom:8px;">対象月：<span class="editable" data-id="mr-month" style="display:inline-block;min-width:160px;border:1px dashed #e0e6ed;padding:2px 8px;"></span></div>
+            <table class="planner-table">
+                <tr><td class="label-cell" style="background:#d4f1d8;">達成できた目標</td><td><div class="editable" data-id="mr-done"></div></td></tr>
+                <tr><td class="label-cell" style="background:#fde2e0;">達成できなかった目標<br>(理由も)</td><td><div class="editable" data-id="mr-undone"></div></td></tr>
+                <tr><td class="label-cell">今月の発見・学び</td><td><div class="editable" data-id="mr-learn"></div></td></tr>
+                <tr><td class="label-cell">各役割の充実度<br>(◎○△× で)</td><td><div class="editable" data-id="mr-roles"></div></td></tr>
+                <tr><td class="label-cell" style="background:#fff8e1;">来月のテーマ<br>(一言で)</td><td><div class="editable" data-id="mr-theme"></div></td></tr>
+                <tr><td class="label-cell" style="background:#fff8e1;">来月の最重要3つ</td><td><div class="editable" data-id="mr-top3"></div></td></tr>
+            </table>
+        </div>`;
+
+        const aiSec = `<div class="goal-section wide section-anchor" id="sec-ai">
+            <h2>🤖 AIを手帳の相棒にする使い方</h2>
+            <p class="section-intro">この手帳とAIを組み合わせると、毎日の負担を減らしながら、自分を深く知ることができます。</p>
+            <h3 style="font-size:1.05em;color:#2e75b6;">朝（5分）</h3>
+            <ul style="margin:6px 0 12px 20px;font-size:14px;">
+                <li>「今日の予定は◯◯です。最重要3タスクの優先順位を相談に乗って」</li>
+                <li>「今日は訪問日。移動2時間半をどう活かす？」</li>
+            </ul>
+            <h3 style="font-size:1.05em;color:#2e75b6;">移動中（任意）</h3>
+            <ul style="margin:6px 0 12px 20px;font-size:14px;">
+                <li>音声で今日の振り返りを話しかけ、文字起こし＋整理を任せる</li>
+                <li>ITパスポート／秘書検定の問題を出してもらう</li>
+            </ul>
+            <h3 style="font-size:1.05em;color:#2e75b6;">夜（10分）</h3>
+            <ul style="margin:6px 0 12px 20px;font-size:14px;">
+                <li>「今日の出来事を話します」と口述 → 夜の振り返り欄に整理してもらう</li>
+                <li>「感情がモヤモヤしているので一緒に解きほぐして」</li>
+            </ul>
+            <h3 style="font-size:1.05em;color:#2e75b6;">週次（日曜30分）</h3>
+            <ul style="margin:6px 0 12px 20px;font-size:14px;">
+                <li>「1週間のスケジュールと記録を見て、ビッグロックは入っていたか分析して」</li>
+                <li>「来週のスケジュールを役割バランスの視点でレビューして」</li>
+            </ul>
+            <h3 style="font-size:1.05em;color:#2e75b6;">月次（月末45分）</h3>
+            <ul style="margin:6px 0 12px 20px;font-size:14px;">
+                <li>「過去1ヶ月の日記からパターンを分析して」</li>
+                <li>「目標の進捗を計算して、来月の現実的な計画を提案して」</li>
+            </ul>
+            <h3 style="font-size:1.05em;color:#2e75b6;">特定の場面で頼れる使い方</h3>
+            <ul style="margin:6px 0 12px 20px;font-size:14px;">
+                <li><strong>訪問診療：</strong>カルテ要約、申し送り作成、書類ドラフト</li>
+                <li><strong>講師業務：</strong>教材アイデア、受講者目線でのレビュー、Q&A対策</li>
+                <li><strong>学習：</strong>ITパスポート・秘書検定の問題演習、つまずきの解説</li>
+                <li><strong>家計：</strong>支出パターンの分析、借金返済シミュレーション</li>
+                <li><strong>投資の学習：</strong>用語解説、リスクの説明（投資判断は自分で）</li>
+                <li><strong>聖書：</strong>通読のペース管理、わからない箇所の解説</li>
+                <li><strong>健康：</strong>水泳のメニュー提案、頚椎に配慮した運動の組み立て</li>
+            </ul>
+            <div class="warning-box">⚠️ <strong>注意：</strong>患者情報や個人情報を扱う場合は、必ず職場で承認されたAI環境を使ってください。</div>
+            <h3 style="font-size:1.05em;color:#2e75b6;margin-top:16px;">あとがき</h3>
+            <p style="font-size:14px;line-height:1.7;">この手帳は完成品ではなく、あなたと一緒に育っていくものです。最初の1ヶ月は、毎日続けることより「触れ続けること」を目標にしてみてください。完璧な記入を目指すと続きません。空欄だらけでも、開くだけでも、あなたの意識は変わっていきます。</p>
+            <p style="font-size:14px;line-height:1.7;">3ヶ月経ったら、ぜひ最初に書いたミッション・ステートメントを読み返してください。きっと、書き直したくなる箇所があるはずです。それは退化ではなく、あなたが自分自身をより深く知った証拠です。</p>
+            <div class="planner-quote">「主体的である」― 反応するのではなく、選び取る人生を</div>
+        </div>`;
+
+        g.innerHTML = subnav + `<div class="goals-grid" style="margin-top:15px;">${
+            missionSec + valuesSec + rolesSec + visionSec + milestonesSec + yearlySec + quarterlySec + weeklySec + weeklyGridSec + eveningSec + monthlyReviewSec + aiSec
+        }</div>`;
+
+        document.querySelectorAll('#goals-subnav button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = document.getElementById(btn.dataset.anchor);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    document.querySelectorAll('#goals-subnav button').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                }
+            });
+        });
+    }
+
+    function generateYearlyCalendar() {
+        const grid=document.getElementById('yearly-calendar-grid');grid.innerHTML='';
+        for(let m=0;m<12;m++){const mc=document.createElement('div');mc.className='year-month-container';mc.dataset.monthIndex=m;mc.onclick=()=>{currentMonth=m;generateMonthlyCalendar(currentYear,currentMonth);openTab('monthly');};let h=`<h3>${m+1}月</h3><table class="year-month-table"><thead><tr>${weekdays.map(d=>`<th>${d.charAt(0)}</th>`).join('')}</tr></thead><tbody>`;const fd=new Date(YEAR,m,1),dim=new Date(YEAR,m+1,0).getDate();let date=1;for(let i=0;i<6;i++){h+='<tr>';for(let j=0;j<7;j++){if(i===0&&j<fd.getDay()||date>dim){h+='<td></td>';}else{const d=new Date(YEAR,m,date);h+=`<td class="${isHoliday(d)?'holiday':''}">${date}</td>`;date++;}}h+='</tr>';if(date>dim)break;}h+='</tbody></table>';mc.innerHTML=h;grid.appendChild(mc);}
+    }
+
+    function highlightAndScrollCurrentMonth(){document.querySelectorAll('.year-month-container').forEach(el=>el.classList.remove('current-month'));const el=document.querySelector(`.year-month-container[data-month-index="${today.getMonth()}"]`);if(el){el.classList.add('current-month');el.scrollIntoView({behavior:'smooth',block:'nearest'});}}
+
+    function generateMonthlyCalendar(year,month){
+        document.getElementById('monthly-calendar-title').innerText=`${year}年 ${month+1}月`;
+        const header=document.getElementById('monthly-calendar-header'),body=document.getElementById('monthly-calendar-body');header.innerHTML='';body.innerHTML='';
+        weekdays.forEach((day,i)=>{const th=document.createElement('th');th.innerText=day;if(i===0)th.classList.add('sunday');if(i===6)th.classList.add('saturday');header.appendChild(th);});
+        const firstDay=new Date(year,month,1).getDay(),daysInMonth=new Date(year,month+1,0).getDate(),daysInPrevMonth=new Date(year,month,0).getDate();let date=1;
+        for(let i=0;i<6;i++){const row=document.createElement('tr');for(let j=0;j<7;j++){const cell=document.createElement('td');cell.className='day-cell';if(i===0&&j<firstDay){cell.classList.add('other-month');cell.innerHTML=`<div class="date-number">${daysInPrevMonth-firstDay+j+1}</div>`;}else if(date>daysInMonth){cell.classList.add('other-month');cell.innerHTML=`<div class="date-number">${date-daysInMonth}</div>`;date++;}else{const cd=new Date(year,month,date);const dateId=`${year}-${String(month+1).padStart(2,'0')}-${String(date).padStart(2,'0')}`;if(j===0||isHoliday(cd))cell.classList.add('sunday');if(j===6)cell.classList.add('saturday');const hc=isHoliday(cd)?'holiday':'';cell.innerHTML=`<div class="date-header"><span class="date-number ${hc}">${date}</span><button class="to-daily-btn" data-date-id="${dateId}">➔</button></div><div class="editable" data-id="monthly-${dateId}"></div>`;if(cd.getTime()===today.getTime())cell.classList.add('today');date++;}row.appendChild(cell);}body.appendChild(row);if(date>daysInMonth)break;}
+        document.getElementById('add-monthly-task-btn').dataset.monthId=`${year}-${String(month+1).padStart(2,'0')}`;renderMonthlyTasks(year,month);loadAllData();
+    }
+
+    function renderMonthlyTasks(year,month){const monthId=`${year}-${String(month+1).padStart(2,'0')}`;const tl=document.getElementById('monthly-task-list');tl.innerHTML='';getMonthlyTasks(monthId).forEach(task=>{const li=document.createElement('li');li.className=`task-item ${task.completed?'completed':''}`;li.innerHTML=`<input type="checkbox" data-task-id="${task.id}" ${task.completed?'checked':''}><div class="editable content" data-task-id="${task.id}">${task.content}</div><button class="task-menu-btn" data-task-id="${task.id}">⋮</button><div class="task-actions" data-task-id="${task.id}"><button class="task-action-item delete-task-btn" data-task-id="${task.id}">🗑 削除</button></div>`;tl.appendChild(li);});}
+
+    function generateDailyView(){
+        const container=document.getElementById('daily-content');container.innerHTML='';let date=new Date(YEAR,0,1);
+        while(date.getFullYear()===YEAR){const dateId=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;const dc=document.createElement('div');dc.id=`day-${dateId}`;dc.className='day-container';if(date.getTime()===today.getTime())dc.classList.add('today');const dow=weekdays[date.getDay()];let dayClass='';if(date.getDay()===0)dayClass='sunday';if(date.getDay()===6)dayClass='saturday';const hn=isHoliday(date),hs=hn?`<span class="holiday"> (${hn})</span>`:'';dc.innerHTML=`<h3>${date.getMonth()+1}/${date.getDate()} <span class="${dayClass}">(${dow})</span>${hs}</h3><div class="daily-grid"><div class="daily-tasks"><h4>Tasks</h4><ul class="task-list" id="task-list-${dateId}"></ul><button class="add-task-btn" data-date-id="${dateId}">+ タスクを追加</button></div><div class="resizer"></div><div class="daily-schedule" id="schedule-${dateId}"><h4>Schedule</h4></div></div>`;const sc=dc.querySelector(`#schedule-${dateId}`);for(let hour=8;hour<=20;hour++){sc.innerHTML+=`<div class="schedule-item"><div class="schedule-time">${hour}:00</div><div class="editable" data-id="daily-schedule-${dateId}-${hour}-00"></div></div><div class="schedule-item"><div class="schedule-time">${hour}:30</div><div class="editable" data-id="daily-schedule-${dateId}-${hour}-30"></div></div>`;}container.appendChild(dc);renderDailyTasks(dateId);date.setDate(date.getDate()+1);}
+    }
+
+    function renderDailyTasks(dateId){const tl=document.getElementById(`task-list-${dateId}`);if(!tl)return;tl.innerHTML='';getDailyTasks(dateId).forEach(task=>{const li=document.createElement('li');li.className=`task-item ${task.completed?'completed':''}`;li.innerHTML=`<input type="checkbox" data-task-id="${task.id}" ${task.completed?'checked':''}><select class="priority-select" data-task-id="${task.id}"><option value="" ${!task.priority?'selected':''}>-</option><option value="A" ${task.priority==='A'?'selected':''}>A</option><option value="B" ${task.priority==='B'?'selected':''}>B</option><option value="C" ${task.priority==='C'?'selected':''}>C</option></select><div class="editable content" data-task-id="${task.id}">${task.content}</div><button class="task-menu-btn" data-task-id="${task.id}">⋮</button><div class="task-actions" data-task-id="${task.id}"><button class="task-action-item move-task-btn" data-task-id="${task.id}">🔁 移動/コピー</button><button class="task-action-item delete-task-btn danger" data-task-id="${task.id}">🗑 削除</button></div>`;tl.appendChild(li);});}
+
+    function setupEventListeners(){
+        const container=document.querySelector('.planner-container');
+        document.querySelectorAll('.tab-button').forEach(b=>b.addEventListener('click',e=>openTab(e.currentTarget.dataset.tab)));
+        document.getElementById('prev-month-btn').addEventListener('click',()=>{currentMonth--;if(currentMonth<0){currentMonth=11;currentYear--;}generateMonthlyCalendar(currentYear,currentMonth);});
+        document.getElementById('next-month-btn').addEventListener('click',()=>{currentMonth++;if(currentMonth>11){currentMonth=0;currentYear++;}generateMonthlyCalendar(currentYear,currentMonth);});
+        container.addEventListener('click',e=>{const t=e.target;
+            // Close any open task menus when clicking outside
+            if(!t.matches('.task-menu-btn') && !t.closest('.task-actions')){
+                document.querySelectorAll('.task-actions.open').forEach(m=>m.classList.remove('open'));
+            }
+            if(t.matches('.daily-tasks .add-task-btn')){const dateId=t.dataset.dateId,tasks=getDailyTasks(dateId);tasks.push({id:Date.now(),content:'',priority:'',completed:false});saveDailyTasks(dateId,tasks);renderDailyTasks(dateId);
+            }else if(t.matches('#add-monthly-task-btn')){const monthId=t.dataset.monthId,tasks=getMonthlyTasks(monthId);tasks.push({id:Date.now(),content:'',completed:false});saveMonthlyTasks(monthId,tasks);renderMonthlyTasks(currentYear,currentMonth);
+            }else if(t.matches('.task-menu-btn')){
+                // Toggle menu for this task
+                e.stopPropagation();
+                const actions=t.nextElementSibling;
+                const wasOpen=actions.classList.contains('open');
+                document.querySelectorAll('.task-actions.open').forEach(m=>m.classList.remove('open'));
+                if(!wasOpen) actions.classList.add('open');
+            }else if(t.matches('.delete-task-btn')){
+                // Two-click delete confirmation
+                if(!t.classList.contains('confirm')){
+                    t.classList.add('confirm');
+                    t.textContent='⚠ 本当に削除';
+                    setTimeout(()=>{t.classList.remove('confirm');t.textContent='🗑 削除';},2500);
+                    return;
+                }
+                const taskId=t.dataset.taskId;
+                const ml=t.closest('#monthly-task-list'),dl=t.closest('.daily-tasks .task-list');
+                if(ml){const monthId=document.getElementById('add-monthly-task-btn').dataset.monthId;saveMonthlyTasks(monthId,getMonthlyTasks(monthId).filter(x=>x.id!=taskId));renderMonthlyTasks(currentYear,currentMonth);}
+                else if(dl){const dateId=dl.id.replace('task-list-','');saveDailyTasks(dateId,getDailyTasks(dateId).filter(x=>x.id!=taskId));renderDailyTasks(dateId);}
+            }else if(t.matches('.to-daily-btn')){openTab('daily');document.getElementById(`day-${t.dataset.dateId}`)?.scrollIntoView({behavior:'smooth'});
+            }else if(t.matches('.editable')){handleEdit(t);
+            }else if(t.matches('.move-task-btn')){
+                document.querySelectorAll('.task-actions.open').forEach(m=>m.classList.remove('open'));
+                const dl=t.closest('.daily-tasks .task-list');openMoveTaskModal(t.dataset.taskId,dl.id.replace('task-list-',''));
+            }
+        });
+        container.addEventListener('change',e=>{const t=e.target,taskId=t.dataset.taskId;const ml=t.closest('#monthly-task-list'),dl=t.closest('.daily-tasks .task-list');if(!taskId||(!ml&&!dl))return;if(ml){const monthId=document.getElementById('add-monthly-task-btn').dataset.monthId;let tasks=getMonthlyTasks(monthId),task=tasks.find(x=>x.id==taskId);if(task){task.completed=t.checked;saveMonthlyTasks(monthId,tasks);renderMonthlyTasks(currentYear,currentMonth);}}else if(dl){const dateId=dl.id.replace('task-list-','');let tasks=getDailyTasks(dateId),task=tasks.find(x=>x.id==taskId);if(task){if(t.matches('input[type="checkbox"]'))task.completed=t.checked;else if(t.matches('.priority-select')){task.priority=t.value;tasks.sort((a,b)=>(a.priority||'Z').localeCompare(b.priority||'Z'));}saveDailyTasks(dateId,tasks);renderDailyTasks(dateId);}}});
+        // Close task menus on any outside tap
+        document.addEventListener('click',e=>{if(!e.target.matches('.task-menu-btn')&&!e.target.closest('.task-actions')){document.querySelectorAll('.task-actions.open').forEach(m=>m.classList.remove('open'));}});
+    }
+
+    function setupResizeListeners(){document.getElementById('daily-content').addEventListener('mousedown',e=>{if(!e.target.classList.contains('resizer'))return;const resizer=e.target,grid=resizer.parentElement,left=grid.children[0];const sx=e.clientX,sw=left.offsetWidth;const move=me=>{const nw=sw+(me.clientX-sx);if(nw>150&&(grid.offsetWidth-nw-resizer.offsetWidth)>150)grid.style.gridTemplateColumns=`${nw}px ${resizer.offsetWidth}px 1fr`;};const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);document.body.style.userSelect='';};document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);document.body.style.userSelect='none';});}
+
+    let currentMoveInfo={};
+    function setupTaskMoveModal(){const modal=document.getElementById('move-task-modal');const close=()=>{modal.style.display='none';};document.getElementById('modal-cancel-btn').addEventListener('click',close);modal.addEventListener('click',e=>{if(e.target===modal)close();});document.getElementById('modal-copy-btn').addEventListener('click',()=>handleTaskAction('copy'));document.getElementById('modal-move-btn').addEventListener('click',()=>handleTaskAction('move'));}
+    function openMoveTaskModal(taskId,fromDateId){const tasks=getDailyTasks(fromDateId),task=tasks.find(t=>t.id==taskId);if(!task)return;currentMoveInfo={taskId,fromDateId,task};document.getElementById('modal-task-content').textContent=task.content;document.getElementById('modal-target-date').value='';document.getElementById('move-task-modal').style.display='flex';}
+    function handleTaskAction(action){const{taskId,fromDateId,task}=currentMoveInfo;const toDateId=document.getElementById('modal-target-date').value;if(!toDateId){alert('移動/コピー先の日付を選択してください。');return;}const toTasks=getDailyTasks(toDateId);if(action==='copy'){toTasks.push({...task,id:Date.now(),completed:false});}else{toTasks.push(task);const from=getDailyTasks(fromDateId).filter(t=>t.id!=taskId);saveDailyTasks(fromDateId,from);renderDailyTasks(fromDateId);}toTasks.sort((a,b)=>(a.priority||'Z').localeCompare(b.priority||'Z'));saveDailyTasks(toDateId,toTasks);renderDailyTasks(toDateId);document.getElementById('move-task-modal').style.display='none';}
+
+    function setupDataManagement(){
+        const modal=document.getElementById('data-mgmt-modal');
+        document.getElementById('open-data-mgmt').addEventListener('click',()=>{modal.style.display='flex';document.getElementById('import-textarea').value='';document.getElementById('import-status').textContent='';document.getElementById('export-status').textContent='';});
+        document.getElementById('btn-close-dm').addEventListener('click',()=>{modal.style.display='none';});
+        modal.addEventListener('click',e=>{if(e.target===modal)modal.style.display='none';});
+        document.getElementById('btn-export').addEventListener('click',()=>{
+            const data=JSON.stringify({editables:editablesData,monthlyTasks:monthlyTasksData,dailyTasks:dailyTasksData},null,2);
+            const ta=document.getElementById('import-textarea');ta.value=data;ta.select();
+            try{document.execCommand('copy');document.getElementById('export-status').innerHTML='<span style="color:#2ecc71;">コピーしました！（テキストエリアにも表示中）</span>';}catch(e){document.getElementById('export-status').innerHTML='<span style="color:#f39c12;">テキストエリアに出力しました。手動でコピーしてください。</span>';}
+        });
+        const owBtn=document.getElementById('btn-import-overwrite');let overwriteArmed=false;
+        owBtn.addEventListener('click',()=>{if(!overwriteArmed){owBtn.textContent='⚠ 本当に上書きする';owBtn.style.backgroundColor='#e74c3c';overwriteArmed=true;setTimeout(()=>{owBtn.textContent='上書きインポート';owBtn.style.backgroundColor='';overwriteArmed=false;},3000);}else{overwriteArmed=false;owBtn.textContent='上書きインポート';owBtn.style.backgroundColor='';doImport('overwrite');}});
+        document.getElementById('btn-import-merge').addEventListener('click',()=>doImport('merge'));
+    }
+
+    function doImport(mode){
+        const statusEl=document.getElementById('import-status');const raw=document.getElementById('import-textarea').value.trim();
+        if(!raw){statusEl.innerHTML='<span style="color:#e74c3c;">JSONを貼り付けてください。</span>';return;}
+        let parsed;try{parsed=JSON.parse(raw);}catch(e){statusEl.innerHTML='<span style="color:#e74c3c;">JSON形式が正しくありません。</span>';return;}
+        if(mode==='overwrite'){editablesData=parsed.editables||{};monthlyTasksData=parsed.monthlyTasks||{};dailyTasksData=parsed.dailyTasks||{};}else{
+            if(parsed.editables){for(const[k,v]of Object.entries(parsed.editables)){if(v)editablesData[k]=v;}}
+            if(parsed.monthlyTasks){for(const[k,v]of Object.entries(parsed.monthlyTasks)){const ex=monthlyTasksData[k]||[];monthlyTasksData[k]=[...ex,...(v||[]).map(t=>({...t,id:Date.now()+Math.random()*1000|0}))];}}
+            if(parsed.dailyTasks){for(const[k,v]of Object.entries(parsed.dailyTasks)){const ex=dailyTasksData[k]||[];dailyTasksData[k]=[...ex,...(v||[]).map(t=>({...t,id:Date.now()+Math.random()*1000|0}))];}}
+        }
+        saveEditables();saveMonthlyTasksStorage();saveDailyTasksStorage();
+        generateMonthlyCalendar(currentYear,currentMonth);generateDailyView();loadAllData();
+        const count=Object.keys(parsed.editables||{}).length+Object.values(parsed.dailyTasks||{}).reduce((s,a)=>s+a.length,0)+Object.values(parsed.monthlyTasks||{}).reduce((s,a)=>s+a.length,0);
+        statusEl.innerHTML=`<span style="color:#2ecc71;">${mode==='overwrite'?'上書き':'マージ'}完了！ ${count}件のデータを取り込みました。</span>`;
+    }
+
+    function setupKeyboardNavigation(){
+        const container=document.querySelector('.planner-container');
+        container.addEventListener('keydown',e=>{if(!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))return;const activeEl=document.activeElement,currentEditable=activeEl.closest('.editable');if(!currentEditable)return;const isTextarea=activeEl.tagName==='TEXTAREA';if(isTextarea&&(e.key==='ArrowUp'||e.key==='ArrowDown'))return;if(isTextarea&&e.key==='ArrowLeft'&&activeEl.selectionStart>0)return;if(isTextarea&&e.key==='ArrowRight'&&activeEl.selectionStart<activeEl.value.length)return;e.preventDefault();const activeTab=container.querySelector('.tab-content.active');if(!activeTab||(activeTab.id!=='daily'&&activeTab.id!=='goals'))return;const allEditables=Array.from(activeTab.querySelectorAll('.editable')).filter(el=>el.offsetParent!==null);if(allEditables.length<=1)return;const cr=currentEditable.getBoundingClientRect();let best=null,minD=Infinity;for(const c of allEditables){if(c===currentEditable)continue;const tr=c.getBoundingClientRect();let d=Infinity,ok=false;switch(e.key){case 'ArrowDown':if(tr.top>cr.top){ok=true;d=(tr.top-cr.top)*1.5+Math.abs(tr.left-cr.left);}break;case 'ArrowUp':if(tr.top<cr.top){ok=true;d=(cr.top-tr.top)*1.5+Math.abs(tr.left-cr.left);}break;case 'ArrowRight':if(tr.left>cr.left&&Math.abs(tr.top-cr.top)<tr.height){ok=true;d=(tr.left-cr.left)+Math.abs(tr.top-cr.top)*2;}break;case 'ArrowLeft':if(tr.left<cr.left&&Math.abs(tr.top-cr.top)<tr.height){ok=true;d=(cr.left-tr.left)+Math.abs(tr.top-cr.top)*2;}break;}if(ok&&d<minD){minD=d;best=c;}}if(!best&&(e.key==='ArrowRight'||e.key==='ArrowLeft')){minD=Infinity;for(const c of allEditables){if(c===currentEditable)continue;const tr=c.getBoundingClientRect();let d=Infinity,ok=false;if(e.key==='ArrowRight'&&tr.left>=cr.left){ok=true;d=Math.hypot(tr.left-cr.right,tr.top-cr.top);}else if(e.key==='ArrowLeft'&&tr.left<=cr.left){ok=true;d=Math.hypot(cr.left-tr.right,tr.top-cr.top);}if(ok&&d<minD){minD=d;best=c;}}}if(best){if(activeEl.matches('.edit-input, .edit-textarea'))activeEl.blur();setTimeout(()=>{best.click();best.scrollIntoView({behavior:'smooth',block:'nearest'});},50);}});
+    }
+
+    function handleEdit(target){
+        if(target.querySelector('.edit-input, .edit-textarea'))return;const id=target.dataset.id,taskId=target.dataset.taskId;const monthlyTaskList=target.closest('#monthly-task-list'),dailyTaskList=target.closest('.daily-tasks .task-list');let originalText='';
+        if(monthlyTaskList){const monthId=document.getElementById('add-monthly-task-btn').dataset.monthId;originalText=getMonthlyTasks(monthId).find(t=>t.id==taskId)?.content||'';}else if(dailyTaskList){const dateId=dailyTaskList.id.replace('task-list-','');originalText=getDailyTasks(dateId).find(t=>t.id==taskId)?.content||'';}else{originalText=editablesData[id]||target.innerText;}
+        const isTextarea=target.classList.contains('content')||target.dataset.id?.startsWith('value')||target.dataset.id?.startsWith('goal')||target.dataset.id?.startsWith('mission')||target.dataset.id?.startsWith('vision')||target.dataset.id?.startsWith('role-being')||target.dataset.id?.startsWith('role-goal')||target.dataset.id?.startsWith('ms-learn')||target.dataset.id?.startsWith('ms-money')||target.dataset.id?.startsWith('ms-life')||target.dataset.id?.startsWith('yg-goal')||target.dataset.id?.startsWith('q-what')||target.dataset.id?.startsWith('q-week')||target.dataset.id?.startsWith('weekly-')||target.dataset.id?.startsWith('big-rock')||target.dataset.id?.startsWith('weeksch-')||target.dataset.id?.startsWith('eve-')||target.dataset.id?.startsWith('mr-')||target.dataset.id?.startsWith('value-meaning');const inputEl=document.createElement(isTextarea?'textarea':'input');inputEl.className=isTextarea?'edit-textarea':'edit-input';if(!isTextarea)inputEl.type='text';inputEl.value=originalText;target.innerHTML='';target.appendChild(inputEl);target.classList.add('editing');inputEl.focus();
+        const finish=()=>{const newText=inputEl.value;if(monthlyTaskList){const monthId=document.getElementById('add-monthly-task-btn').dataset.monthId;let tasks=getMonthlyTasks(monthId),task=tasks.find(t=>t.id==taskId);if(task)task.content=newText;saveMonthlyTasks(monthId,tasks);renderMonthlyTasks(currentYear,currentMonth);}else if(dailyTaskList){const dateId=dailyTaskList.id.replace('task-list-','');let tasks=getDailyTasks(dateId),task=tasks.find(t=>t.id==taskId);if(task)task.content=newText;saveDailyTasks(dateId,tasks);renderDailyTasks(dateId);}else{editablesData[id]=newText;saveEditables();target.innerHTML=newText.replace(/\n/g,'<br>');}target.classList.remove('editing');};
+        inputEl.addEventListener('blur',finish,{once:true});inputEl.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!isTextarea)inputEl.blur();if(e.key==='Escape'){inputEl.value=originalText;inputEl.blur();}});
+    }
+
+    function loadAllData(){document.querySelectorAll('.editable').forEach(el=>{if(!el.closest('.task-item')){const id=el.dataset.id;const saved=editablesData[id];if(saved)el.innerHTML=saved.replace(/\n/g,'<br>');}});}
+
+    const scrollToToday=()=>{const todayId=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;document.getElementById(`day-${todayId}`)?.scrollIntoView({behavior:'smooth',block:'start'});};
+
+    init();
+});
+</script>
+</body>
+</html>
